@@ -7,7 +7,7 @@ from autointent import VectorIndex
 from autointent.context import Context
 from autointent.context.optimization_info import RetrieverArtifact
 from autointent.custom_types import LabelType
-from autointent.metrics import RetrievalMetricFn
+from autointent.metrics import RETRIEVAL_METRICS_MULTICLASS, RETRIEVAL_METRICS_MULTILABEL
 from autointent.modules.abc import EmbeddingModule
 
 
@@ -117,15 +117,13 @@ class RetrievalEmbedding(EmbeddingModule):
         self,
         context: Context,
         split: Literal["validation", "test"],
-        metric_fn: RetrievalMetricFn,
-    ) -> float:
+    ) -> dict[str, float | str]:
         """
         Evaluate the embedding model using a specified metric function.
 
         :param context: The context containing test data and labels.
         :param split: Target split
-        :param metric_fn: Function to compute the retrieval metric.
-        :return: Computed metric score.
+        :return: Computed metrics value for the test set or error code of metrics
         """
         if split == "validation":
             utterances = context.data_handler.validation_utterances(0)
@@ -137,7 +135,9 @@ class RetrievalEmbedding(EmbeddingModule):
             message = f"Invalid split '{split}' provided. Expected one of 'validation', or 'test'."
             raise ValueError(message)
         predictions, _, _ = self._vector_index.query(utterances, self.k)
-        return metric_fn(labels, predictions)
+
+        metrics_dict = RETRIEVAL_METRICS_MULTILABEL if context.is_multilabel() else RETRIEVAL_METRICS_MULTICLASS
+        return self.score_metrics((labels, predictions), metrics_dict)
 
     def get_assets(self) -> RetrieverArtifact:
         """

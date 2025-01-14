@@ -10,7 +10,6 @@ from autointent._dump_tools import Dumper
 from autointent.context import Context
 from autointent.context.optimization_info import Artifact
 from autointent.custom_types import BaseMetadataDict
-from autointent.metrics import METRIC_FN
 
 
 class Module(ABC):
@@ -35,14 +34,13 @@ class Module(ABC):
         self,
         context: Context,
         split: Literal["validation", "test"],
-        metric_fn: METRIC_FN,
-    ) -> float:
+    ) -> dict[str, float | str]:
         """
         Calculate metric on test set and return metric value.
 
         :param context: Context to score
         :param split: Split to score on
-        :param metric_fn: Metric function
+        :return: Computed metrics value for the test set or error code of metrics
         """
 
     @abstractmethod
@@ -104,3 +102,20 @@ class Module(ABC):
     def get_embedder_name(self) -> str | None:
         """Experimental method."""
         return None
+
+    @staticmethod
+    def score_metrics(params: tuple[Any, Any], metrics_dict: dict[str, Any]) -> dict[str, float | str]:
+        """
+        Score metrics on the test set.
+
+        :param params: Params to score
+        :param metrics_dict:
+        :return:
+        """
+        metrics = {}
+        for metric_name, metric_fn in metrics_dict.items():
+            try:
+                metrics[metric_name] = metric_fn(*params)
+            except Exception as e:  # noqa: PERF203, BLE001
+                metrics[metric_name] = str(e)
+        return metrics
