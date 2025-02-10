@@ -14,13 +14,9 @@ class Generator:
     def __init__(self) -> None:
         """Initialize."""
         load_dotenv()
-        self.client = openai.OpenAI(
-            base_url=os.environ["OPENAI_BASE_URL"],
-            api_key=os.environ["OPENAI_API_KEY"]
-        )
+        self.client = openai.OpenAI(base_url=os.environ["OPENAI_BASE_URL"], api_key=os.environ["OPENAI_API_KEY"])
         self.async_client = openai.AsyncOpenAI(
-            base_url=os.environ["OPENAI_BASE_URL"],
-            api_key=os.environ["OPENAI_API_KEY"]
+            base_url=os.environ["OPENAI_BASE_URL"], api_key=os.environ["OPENAI_API_KEY"]
         )
         self.model_name = os.environ["OPENAI_MODEL_NAME"]
 

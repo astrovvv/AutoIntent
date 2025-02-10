@@ -12,8 +12,6 @@ import torch
 from autointent import Dataset
 from autointent.context import Context
 from autointent.custom_types import NodeType
-from autointent.modules.abc import Module
-from autointent.modules.abc._decision import get_decision_evaluation_data
 from autointent.nodes._nodes_info import NODES_INFO
 
 
@@ -69,11 +67,8 @@ class NodeOptimizer:
                 if embedder_name is not None:
                     module_kwargs["embedder_name"] = embedder_name
 
-                self._logger.debug("optimizing %s module...", module_name)
-                self.module_fit(module, context)
-
                 self._logger.debug("scoring %s module...", module_name)
-                metrics_score = module.score(context, "validation", self.metrics)
+                metrics_score = module.score(context, metrics=self.metrics)
                 metric_value = metrics_score[self.target_metric]
 
                 context.callback_handler.log_metrics(metrics_score)
@@ -117,33 +112,6 @@ class NodeOptimizer:
         dump_dir_ = dump_dir / self.node_info.node_type / module_name / f"comb_{j_combination}"
         dump_dir_.mkdir(parents=True, exist_ok=True)
         return str(dump_dir_)
-
-    def module_fit(self, module: Module, context: Context) -> None:
-        """
-        Fit the module.
-
-        :param module: Module to fit
-        :param context: Context to use
-        """
-        if self.node_info.node_type in ["embedding", "scoring"]:
-            if module.__class__.__name__ == "DescriptionScorer":
-                args = (
-                    context.data_handler.train_utterances(0),
-                    context.data_handler.train_labels(0),
-                    context.data_handler.intent_descriptions,
-                )
-            else:
-                args = (context.data_handler.train_utterances(0), context.data_handler.train_labels(0))  # type: ignore[assignment]
-        elif self.node_info.node_type == "decision":
-            labels, scores = get_decision_evaluation_data(context, "train")
-            args = (scores, labels, context.data_handler.tags)  # type: ignore[assignment]
-        elif self.node_info.node_type == "regexp":
-            args = ()  # type: ignore[assignment]
-        else:
-            msg = "something's wrong"
-            self._logger.error(msg)
-            raise ValueError(msg)
-        module.fit(*args)  # type: ignore[arg-type]
 
     def validate_nodes_with_dataset(self, dataset: Dataset) -> None:
         """
