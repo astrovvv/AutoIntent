@@ -1,16 +1,15 @@
 """CLI for evolutionary augmenter."""
 
 import logging
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 
 from autointent import load_dataset
-from autointent.generation.utterances.evolution.evolver import UtteranceEvolver
+from autointent.generation.utterances.evolution import IncrementalUtteranceEvolver, UtteranceEvolver
 from autointent.generation.utterances.generator import Generator
 
 from .chat_templates import (
     AbstractEvolution,
     ConcreteEvolution,
-    EvolutionChatTemplate,
     FormalEvolution,
     FunnyEvolution,
     GoofyEvolution,
@@ -22,8 +21,7 @@ logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
-    """CLI endpoint."""
+def _parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument(
         "--input-path",
@@ -46,6 +44,7 @@ def main() -> None:
     )
     parser.add_argument("--private", action="store_true", help="Publish privately if --output-repo option is used")
     parser.add_argument("--n-evolutions", type=int, default=1, help="Number of utterances to generate for each intent")
+    parser.add_argument("--decide-for-me", action="store_true")
     parser.add_argument("--reasoning", action="store_true", help="Whether to use `Reasoning` evolution")
     parser.add_argument("--concretizing", action="store_true", help="Whether to use `Concretizing` evolution")
     parser.add_argument("--abstract", action="store_true", help="Whether to use `Abstract` evolution")
@@ -55,34 +54,46 @@ def main() -> None:
     parser.add_argument("--informal", action="store_true", help="Whether to use `Informal` evolution")
     parser.add_argument("--async-mode", action="store_true", help="Enable asynchronous generation")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--search-space", type=str, default=None)
 
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    evolutions: list[EvolutionChatTemplate] = []
-    if args.reasoning:
-        evolutions.append(ReasoningEvolution())
-    if args.concretizing:
-        evolutions.append(ConcreteEvolution())
-    if args.abstract:
-        evolutions.append(AbstractEvolution())
-    if args.formal:
-        evolutions.append(FormalEvolution())
-    if args.funny:
-        evolutions.append(FunnyEvolution())
-    if args.goofy:
-        evolutions.append(GoofyEvolution())
-    if args.informal:
-        evolutions.append(InformalEvolution())
+
+def main() -> None:
+    """CLI endpoint."""
+    mapping = {
+        "reasoning": ReasoningEvolution,
+        "concretizing": ConcreteEvolution,
+        "abstract": AbstractEvolution,
+        "formal": FormalEvolution,
+        "funny": FunnyEvolution,
+        "goofy": GoofyEvolution,
+        "informal": InformalEvolution,
+    }
+    args = _parse_args()
+    evolutions = []
+
+    for arg_name, evolution_cls in mapping.items():
+        if getattr(args, arg_name):
+            evolutions.append(evolution_cls())  # type: ignore[abstract]
 
     if not evolutions:
         logger.warning("No evolutions selected. Exiting.")
         return
 
+    utterance_evolver: UtteranceEvolver
+    if args.decide_for_me:
+        utterance_evolver = IncrementalUtteranceEvolver(Generator(), evolutions, args.seed, args.async_mode)
+    else:
+        utterance_evolver = UtteranceEvolver(Generator(), evolutions, args.seed, args.async_mode)
     dataset = load_dataset(args.input_path)
+
     n_before = len(dataset[args.split])
 
-    generator = UtteranceEvolver(Generator(), evolutions, args.seed, async_mode=args.async_mode)
-    new_samples = generator.augment(dataset, split_name=args.split, n_evolutions=args.n_evolutions)
+    new_samples = utterance_evolver.augment(
+        dataset, split_name=args.split, n_evolutions=args.n_evolutions, batch_size=args.batch_size
+    )
     n_after = len(dataset[args.split])
 
     logger.info("# samples before %s", n_before)

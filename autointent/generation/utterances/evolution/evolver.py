@@ -15,7 +15,7 @@ from autointent import Dataset
 from autointent.custom_types import Split
 from autointent.generation.utterances.generator import Generator
 from autointent.generation.utterances.schemas import Message
-from autointent.schemas import Intent, Sample
+from autointent.schemas import Intent
 
 
 class UtteranceEvolver:
@@ -62,7 +62,7 @@ class UtteranceEvolver:
         n_evolutions: int = 1,
         update_split: bool = True,
         batch_size: int = 4,
-    ) -> list[Sample]:
+    ) -> HFDataset:
         """
         Augment some split of dataset.
 
@@ -90,11 +90,11 @@ class UtteranceEvolver:
                 [{Dataset.label_feature: intent_data.id, Dataset.utterance_feature: ut} for ut in generated_utterances]
             )
 
+        generated_split = HFDataset.from_list(new_samples)
         if update_split:
-            generated_split = HFDataset.from_list(new_samples)
             dataset[split_name] = concatenate_datasets([original_split, generated_split])
 
-        return [Sample(**sample) for sample in new_samples]
+        return generated_split
 
     async def _augment_async(
         self,
@@ -103,7 +103,7 @@ class UtteranceEvolver:
         n_evolutions: int = 1,
         update_split: bool = True,
         batch_size: int = 4,
-    ) -> list[Sample]:
+    ) -> HFDataset:
         original_split = dataset[split_name]
         new_samples = []
 
@@ -124,8 +124,8 @@ class UtteranceEvolver:
             for result, intent_id in zip(batch_results, batch_labels, strict=False):
                 new_samples.append({Dataset.label_feature: intent_id, Dataset.utterance_feature: result})
 
+        generated_split = HFDataset.from_list(new_samples)
         if update_split:
-            generated_split = HFDataset.from_list(new_samples)
             dataset[split_name] = concatenate_datasets([original_split, generated_split])
 
-        return [Sample(**sample) for sample in new_samples]
+        return generated_split
