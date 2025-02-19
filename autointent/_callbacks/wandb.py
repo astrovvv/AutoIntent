@@ -79,7 +79,8 @@ class WandbCallback(OptimizerCallback):
             name="final_metrics",
             config=metrics,
         )
-        self.wandb.log(metrics)
+
+        self.wandb.log(metrics.get("pipeline_metrics", {}))
         self.wandb.finish()
 
     def end_module(self) -> None:
