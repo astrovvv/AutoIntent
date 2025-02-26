@@ -102,6 +102,7 @@
                     "title": "Max Length"
                 },
                 "model_name": {
+                    "default": "cross-encoder/ms-marco-MiniLM-L-6-v2",
                     "description": "Name of the hugging face model.",
                     "title": "Model Name",
                     "type": "string"
@@ -126,9 +127,6 @@
                     "type": "boolean"
                 }
             },
-            "required": [
-                "model_name"
-            ],
             "title": "CrossEncoderConfig",
             "type": "object"
         },
@@ -153,20 +151,6 @@
                     "description": "Number of trials",
                     "title": "N Trials"
                 },
-                "cross_encoder_config": {
-                    "items": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/$defs/CrossEncoderConfig"
-                            },
-                            {
-                                "type": "string"
-                            }
-                        ]
-                    },
-                    "title": "Cross Encoder Config",
-                    "type": "array"
-                },
                 "k": {
                     "anyOf": [
                         {
@@ -181,6 +165,26 @@
                         }
                     ],
                     "title": "K"
+                },
+                "cross_encoder_config": {
+                    "default": [
+                        null
+                    ],
+                    "items": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/$defs/CrossEncoderConfig"
+                            },
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "title": "Cross Encoder Config",
+                    "type": "array"
                 },
                 "embedder_config": {
                     "default": [
@@ -205,7 +209,6 @@
             },
             "required": [
                 "module_name",
-                "cross_encoder_config",
                 "k"
             ],
             "title": "DNNCScorerInitModel",
@@ -417,6 +420,7 @@
                     "title": "Max Length"
                 },
                 "model_name": {
+                    "default": "sentence-transformers/all-MiniLM-L6-v2",
                     "description": "Name of the hugging face model.",
                     "title": "Model Name",
                     "type": "string"
@@ -519,9 +523,6 @@
                     "type": "boolean"
                 }
             },
-            "required": [
-                "model_name"
-            ],
             "title": "EmbedderConfig",
             "type": "object"
         },
@@ -714,6 +715,9 @@
                     "title": "K"
                 },
                 "weights": {
+                    "default": [
+                        "distance"
+                    ],
                     "items": {
                         "enum": [
                             "uniform",
@@ -748,8 +752,7 @@
             },
             "required": [
                 "module_name",
-                "k",
-                "weights"
+                "k"
             ],
             "title": "KNNScorerInitModel",
             "type": "object"
@@ -1248,6 +1251,9 @@
                     "title": "K"
                 },
                 "weights": {
+                    "default": [
+                        "distance"
+                    ],
                     "items": {
                         "enum": [
                             "uniform",
@@ -1259,7 +1265,35 @@
                     "title": "Weights",
                     "type": "array"
                 },
+                "m": {
+                    "anyOf": [
+                        {
+                            "items": {
+                                "anyOf": [
+                                    {
+                                        "exclusiveMinimum": 0,
+                                        "type": "integer"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "type": "array"
+                        },
+                        {
+                            "$ref": "#/$defs/ParamSpaceInt"
+                        }
+                    ],
+                    "default": [
+                        null
+                    ],
+                    "title": "M"
+                },
                 "cross_encoder_config": {
+                    "default": [
+                        null
+                    ],
                     "items": {
                         "anyOf": [
                             {
@@ -1267,6 +1301,9 @@
                             },
                             {
                                 "type": "string"
+                            },
+                            {
+                                "type": "null"
                             }
                         ]
                     },
@@ -1292,30 +1329,6 @@
                     },
                     "title": "Embedder Config",
                     "type": "array"
-                },
-                "m": {
-                    "anyOf": [
-                        {
-                            "items": {
-                                "anyOf": [
-                                    {
-                                        "type": "integer"
-                                    },
-                                    {
-                                        "type": "null"
-                                    }
-                                ]
-                            },
-                            "type": "array"
-                        },
-                        {
-                            "$ref": "#/$defs/ParamSpaceInt"
-                        }
-                    ],
-                    "default": [
-                        null
-                    ],
-                    "title": "M"
                 },
                 "rank_threshold_cutoff": {
                     "anyOf": [
@@ -1344,9 +1357,7 @@
             },
             "required": [
                 "module_name",
-                "k",
-                "weights",
-                "cross_encoder_config"
+                "k"
             ],
             "title": "RerankScorerInitModel",
             "type": "object"
@@ -1519,30 +1530,10 @@
                     "title": "N Trials"
                 },
                 "clf_name": {
-                    "default": [
-                        "LogisticRegression"
-                    ],
                     "items": {
                         "type": "string"
                     },
                     "title": "Clf Name",
-                    "type": "array"
-                },
-                "clf_args": {
-                    "default": [
-                        null
-                    ],
-                    "items": {
-                        "anyOf": [
-                            {
-                                "type": "object"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "title": "Clf Args",
                     "type": "array"
                 },
                 "embedder_config": {
@@ -1564,35 +1555,31 @@
                     },
                     "title": "Embedder Config",
                     "type": "array"
+                },
+                "clf_args": {
+                    "items": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "boolean"
+                            }
+                        ]
+                    },
+                    "title": "Clf Args",
+                    "type": "array"
                 }
             },
             "required": [
-                "module_name"
+                "module_name",
+                "clf_name",
+                "clf_args"
             ],
             "title": "SklearnScorerInitModel",
-            "type": "object"
-        },
-        "TaskConfig": {
-            "description": "Configuration for the task to optimize.",
-            "properties": {
-                "search_space": {
-                    "$ref": "#/$defs/OptimizationSearchSpaceConfig"
-                },
-                "sampler": {
-                    "default": "brute",
-                    "enum": [
-                        "brute",
-                        "tpe",
-                        "random"
-                    ],
-                    "title": "Sampler",
-                    "type": "string"
-                }
-            },
-            "required": [
-                "search_space"
-            ],
-            "title": "TaskConfig",
             "type": "object"
         },
         "ThresholdDecisionInitModel": {
@@ -1716,19 +1703,6 @@
             ],
             "title": "TunableDecisionInitModel",
             "type": "object"
-        },
-        "VectorIndexConfig": {
-            "description": "Configuration for the vector index.",
-            "properties": {
-                "save_db": {
-                    "default": false,
-                    "description": "Whether to save the vector index database or not",
-                    "title": "Save Db",
-                    "type": "boolean"
-                }
-            },
-            "title": "VectorIndexConfig",
-            "type": "object"
         }
     },
     "description": "Configuration for the optimization process.",
@@ -1742,8 +1716,8 @@
                 "separation_ratio": 0.5
             }
         },
-        "task_config": {
-            "$ref": "#/$defs/TaskConfig"
+        "search_space": {
+            "$ref": "#/$defs/OptimizationSearchSpaceConfig"
         },
         "logging_config": {
             "$ref": "#/$defs/LoggingConfig",
@@ -1755,11 +1729,41 @@
                 "report_to": null
             }
         },
-        "vector_index_config": {
-            "$ref": "#/$defs/VectorIndexConfig",
+        "embedder_config": {
+            "$ref": "#/$defs/EmbedderConfig",
             "default": {
-                "save_db": false
+                "batch_size": 32,
+                "max_length": null,
+                "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+                "device": null,
+                "default_prompt": null,
+                "classifier_prompt": null,
+                "cluster_prompt": null,
+                "sts_prompt": null,
+                "query_prompt": null,
+                "passage_prompt": null,
+                "use_cache": false
             }
+        },
+        "cross_encoder_config": {
+            "$ref": "#/$defs/CrossEncoderConfig",
+            "default": {
+                "batch_size": 32,
+                "max_length": null,
+                "model_name": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                "device": null,
+                "train_head": false
+            }
+        },
+        "sampler": {
+            "default": "brute",
+            "enum": [
+                "brute",
+                "tpe",
+                "random"
+            ],
+            "title": "Sampler",
+            "type": "string"
         },
         "seed": {
             "default": 42,
@@ -1769,7 +1773,7 @@
         }
     },
     "required": [
-        "task_config"
+        "search_space"
     ],
     "title": "OptimizationConfig",
     "type": "object"

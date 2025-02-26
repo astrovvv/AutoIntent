@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 
-from autointent.nodes.schemes import OptimizationConfig, OptimizationSearchSpaceConfig
+from autointent.nodes.schemes import OptimizationSearchSpaceConfig
+from autointent import OptimizationConfig
 
 
 def generate_json_schema_search_space_config() -> None:

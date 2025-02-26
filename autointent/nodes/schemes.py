@@ -6,8 +6,7 @@ from typing import Annotated, Any, Literal, TypeAlias, Union, get_args, get_orig
 
 from pydantic import BaseModel, Field, PositiveInt, RootModel
 
-from autointent.configs import DataConfig, LoggingConfig, VectorIndexConfig
-from autointent.custom_types import NodeType, SamplerType
+from autointent.custom_types import NodeType
 from autointent.modules.abc import BaseModule
 from autointent.nodes._optimization._node_optimizer import ParamSpaceFloat, ParamSpaceInt
 from autointent.nodes.info import DecisionNodeInfo, EmbeddingNodeInfo, RegexNodeInfo, ScoringNodeInfo
@@ -179,21 +178,3 @@ class OptimizationSearchSpaceConfig(RootModel[list[SearchSpaceTypes]]):
         :return: Item
         """
         return self.root[item]
-
-
-class TaskConfig(BaseModel):
-    """Configuration for the task to optimize."""
-
-    search_space: OptimizationSearchSpaceConfig
-    """Path to the search space configuration file. If None, the default search space will be used"""
-    sampler: SamplerType = "brute"
-
-
-class OptimizationConfig(BaseModel):
-    """Configuration for the optimization process."""
-
-    data_config: DataConfig = DataConfig()
-    task_config: TaskConfig
-    logging_config: LoggingConfig = LoggingConfig()
-    vector_index_config: VectorIndexConfig = VectorIndexConfig()
-    seed: PositiveInt = 42

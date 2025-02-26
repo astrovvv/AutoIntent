@@ -9,13 +9,24 @@ import numpy as np
 import yaml
 from typing_extensions import assert_never
 
-from autointent import Context, Dataset
-from autointent.configs import DataConfig, InferenceNodeConfig, LoggingConfig, VectorIndexConfig
-from autointent.custom_types import ListOfGenericLabels, NodeType, SamplerType
+from autointent import Context, Dataset, OptimizationConfig
+from autointent.configs import (
+    CrossEncoderConfig,
+    DataConfig,
+    EmbedderConfig,
+    InferenceNodeConfig,
+    LoggingConfig,
+)
+from autointent.custom_types import (
+    ListOfGenericLabels,
+    NodeType,
+    SamplerType,
+    SearchSpacePresets,
+    SearchSpaceValidationMode,
+)
 from autointent.metrics import DECISION_METRICS
 from autointent.nodes import InferenceNode, NodeOptimizer
-from autointent.nodes.schemes import OptimizationConfig, OptimizationSearchSpaceConfig
-from autointent.utils import load_default_search_space, load_search_space
+from autointent.utils import load_preset, load_search_space
 
 from ._schemas import InferencePipelineOutput, InferencePipelineUtteranceOutput
 
@@ -50,12 +61,13 @@ class Pipeline:
 
         if isinstance(nodes[0], NodeOptimizer):
             self.logging_config = LoggingConfig(dump_dir=None)
-            self.vector_index_config = VectorIndexConfig()
+            self.embedder_config = EmbedderConfig()
+            self.cross_encoder_config = CrossEncoderConfig()
             self.data_config = DataConfig()
         elif not isinstance(nodes[0], InferenceNode):
             assert_never(nodes)
 
-    def set_config(self, config: LoggingConfig | VectorIndexConfig | DataConfig) -> None:
+    def set_config(self, config: LoggingConfig | EmbedderConfig | CrossEncoderConfig | DataConfig) -> None:
         """
         Set configuration for the optimizer.
 
@@ -63,8 +75,10 @@ class Pipeline:
         """
         if isinstance(config, LoggingConfig):
             self.logging_config = config
-        elif isinstance(config, VectorIndexConfig):
-            self.vector_index_config = config
+        elif isinstance(config, EmbedderConfig):
+            self.embedder_config = config
+        elif isinstance(config, CrossEncoderConfig):
+            self.cross_encoder_config = config
         elif isinstance(config, DataConfig):
             self.data_config = config
         else:
@@ -78,47 +92,45 @@ class Pipeline:
         :param search_space: Dictionary config
         :param seed: random seed
         """
-        if isinstance(search_space, Path | str):
+        if not isinstance(search_space, list):
             search_space = load_search_space(search_space)
-        validated_search_space = OptimizationSearchSpaceConfig(search_space).model_dump()  # type: ignore[arg-type]
-        nodes = [NodeOptimizer(**node) for node in validated_search_space]
+        nodes = [NodeOptimizer(**node) for node in search_space]
         return cls(nodes=nodes, seed=seed)
 
     @classmethod
-    def from_optimization_config(cls, config: dict[str, Any] | Path | str) -> "Pipeline":
+    def from_preset(cls, name: SearchSpacePresets, seed: int = 42) -> "Pipeline":
+        optimization_config = load_preset(name)
+        config = OptimizationConfig(seed=seed, **optimization_config)
+        return cls.from_optimization_config(config=config)
+
+    @classmethod
+    def from_optimization_config(cls, config: dict[str, Any] | Path | str | OptimizationConfig) -> "Pipeline":
         """
         Create pipeline optimizer from optimization config.
 
         :param config: Optimization config
         :return:
         """
-        if isinstance(config, Path | str):
-            with Path(config).open() as file:
-                loaded_config = yaml.safe_load(file)
+        if isinstance(config, OptimizationConfig):
+            optimization_config = config
         else:
-            loaded_config = config
-        optimization_config = OptimizationConfig(**loaded_config)
+            if isinstance(config, dict):
+                dict_params = config
+            else:
+                with Path(config).open() as file:
+                    dict_params = yaml.safe_load(file)
+            optimization_config = OptimizationConfig(**dict_params)
+
         pipeline = cls(
-            [NodeOptimizer(**node.model_dump()) for node in optimization_config.task_config.search_space],
-            optimization_config.task_config.sampler,
+            [NodeOptimizer(**node.model_dump()) for node in optimization_config.search_space],
+            optimization_config.sampler,
             optimization_config.seed,
         )
         pipeline.set_config(optimization_config.logging_config)
-        pipeline.set_config(optimization_config.vector_index_config)
         pipeline.set_config(optimization_config.data_config)
+        pipeline.set_config(optimization_config.embedder_config)
+        pipeline.set_config(optimization_config.cross_encoder_config)
         return pipeline
-
-    @classmethod
-    def default_optimizer(cls, multilabel: bool, seed: int = 42) -> "Pipeline":
-        """
-        Create pipeline optimizer with default search space for given classification task.
-
-        :param multilabel: Whether the task multi-label, or single-label.
-        :param seed: random seed
-
-        :return: Pipeline
-        """
-        return cls.from_search_space(search_space=load_default_search_space(multilabel), seed=seed)
 
     def _fit(self, context: Context, sampler: SamplerType) -> None:
         """
@@ -136,9 +148,6 @@ class Pipeline:
             node_optimizer = self.nodes.get(node_type, None)
             if node_optimizer is not None:
                 node_optimizer.fit(context, sampler)  # type: ignore[union-attr]
-        if not context.vector_index_config.save_db:
-            self._logger.info("removing vector database from file system...")
-            # TODO clear cache from appdirs
         self.context.callback_handler.end_run()
 
     def _is_inference(self) -> bool:
@@ -154,6 +163,7 @@ class Pipeline:
         dataset: Dataset,
         refit_after: bool = False,
         sampler: SamplerType | None = None,
+        incompatible_search_space: SearchSpaceValidationMode = "filter",
     ) -> Context:
         """
         Optimize the pipeline from dataset.
@@ -168,9 +178,10 @@ class Pipeline:
         context = Context()
         context.set_dataset(dataset, self.data_config)
         context.configure_logging(self.logging_config)
-        context.configure_vector_index(self.vector_index_config)
+        context.configure_transformer(self.embedder_config)
+        context.configure_transformer(self.cross_encoder_config)
 
-        self.validate_modules(dataset)
+        self.validate_modules(dataset, mode=incompatible_search_space)
 
         test_utterances = context.data_handler.test_utterances()
         if test_utterances is None:
@@ -207,7 +218,7 @@ class Pipeline:
 
         return context
 
-    def validate_modules(self, dataset: Dataset) -> None:
+    def validate_modules(self, dataset: Dataset, mode: SearchSpaceValidationMode) -> None:
         """
         Validate modules with dataset.
 
@@ -215,7 +226,7 @@ class Pipeline:
         """
         for node in self.nodes.values():
             if isinstance(node, NodeOptimizer):
-                node.validate_nodes_with_dataset(dataset)
+                node.validate_nodes_with_dataset(dataset, mode)
 
     @classmethod
     def from_dict_config(cls, nodes_configs: list[dict[str, Any]]) -> "Pipeline":

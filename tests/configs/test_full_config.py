@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from autointent.nodes.schemes import OptimizationConfig
+from autointent import OptimizationConfig
 from tests.conftest import get_search_space
 
 

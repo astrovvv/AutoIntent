@@ -68,10 +68,3 @@ class LoggingConfig(BaseModel):
         if self.run_name is None:
             self.run_name = get_run_name()
         return self.run_name
-
-
-class VectorIndexConfig(BaseModel):
-    """Configuration for the vector index."""
-
-    save_db: bool = Field(False, description="Whether to save the vector index database or not")
-    """Whether to save the vector index database or not"""
