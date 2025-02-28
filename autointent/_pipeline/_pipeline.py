@@ -266,20 +266,33 @@ class Pipeline:
         return cls(nodes)
 
     @classmethod
-    def load(cls, path: str | Path) -> "Pipeline":
+    def load(
+        cls,
+        path: str | Path,
+        embedder_config: EmbedderConfig | None = None,
+        cross_encoder_config: CrossEncoderConfig | None = None,
+    ) -> "Pipeline":
         """Load pipeline in inference mode.
-
-        This method loads fitted modules and tuned hyperparameters.
 
         Args:
             path: Path to load
+            embedder_config: one can override presaved settings
+            cross_encoder_config: one can override presaved settings
 
         Returns:
             Inference pipeline
         """
         with (Path(path) / "inference_config.yaml").open() as file:
-            inference_dict_config = yaml.safe_load(file)
-        return cls.from_dict_config(inference_dict_config["nodes_configs"])
+            inference_dict_config: dict[str, Any] = yaml.safe_load(file)
+
+        inference_config = [
+            InferenceNodeConfig(
+                **node_config, embedder_config=embedder_config, cross_encoder_config=cross_encoder_config
+            )
+            for node_config in inference_dict_config["nodes_configs"]
+        ]
+
+        return cls.from_config(inference_config)
 
     def predict(self, utterances: list[str]) -> ListOfGenericLabels:
         """Predict the labels for the utterances.
