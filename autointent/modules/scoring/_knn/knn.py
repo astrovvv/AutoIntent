@@ -42,12 +42,6 @@ class KNNScorer(BaseScorer):
         scorer.fit(utterances, labels)
         test_utterances = ["hi", "what's up?"]
         probabilities = scorer.predict(test_utterances)
-        print(probabilities)  # Outputs predicted class probabilities for the utterances
-
-    .. testoutput::
-
-        [[0.67297815 0.32702185]
-         [0.44031667 0.55968333]]
 
     """
 
