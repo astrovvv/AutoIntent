@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Generator
-from typing import TypedDict, cast
+from typing import cast
 
 from datasets import concatenate_datasets
 from transformers import set_seed
@@ -16,28 +16,14 @@ from ._stratification import split_dataset
 logger = logging.getLogger(__name__)
 
 
-class RegexPatterns(TypedDict):
-    """Regex patterns for each intent class.
-
-    Attributes:
-        id: Intent class id.
-        regex_full_match: Full match regex patterns.
-        regex_partial_match: Partial match regex patterns.
-    """
-
-    id: int
-    regex_full_match: list[str]
-    regex_partial_match: list[str]
-
-
-class DataHandler:  # TODO rename to Validator
+class DataHandler:
     """Data handler class."""
 
     def __init__(
         self,
         dataset: Dataset,
         config: DataConfig | None = None,
-        random_seed: int = 0,
+        random_seed: int | None = 0,
     ) -> None:
         """Initialize the data handler.
 
@@ -46,7 +32,8 @@ class DataHandler:  # TODO rename to Validator
             config: Configuration object
             random_seed: Seed for random number generation.
         """
-        set_seed(random_seed)
+        if random_seed is not None:
+            set_seed(random_seed)
         self.random_seed = random_seed
 
         self.dataset = dataset
@@ -58,15 +45,6 @@ class DataHandler:  # TODO rename to Validator
             self._split_ho(self.config.separation_ratio, self.config.validation_size)
         elif self.config.scheme == "cv":
             self._split_cv()
-
-        self.regex_patterns = [
-            RegexPatterns(
-                id=intent.id,
-                regex_full_match=intent.regex_full_match,
-                regex_partial_match=intent.regex_partial_match,
-            )
-            for intent in self.dataset.intents
-        ]
 
         self.intent_descriptions = [intent.description for intent in self.dataset.intents]
         self.tags = self.dataset.get_tags()

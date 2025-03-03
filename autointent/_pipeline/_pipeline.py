@@ -31,7 +31,7 @@ from autointent.utils import load_preset, load_search_space
 from ._schemas import InferencePipelineOutput, InferencePipelineUtteranceOutput
 
 if TYPE_CHECKING:
-    from autointent.modules.base import BaseDecision, BaseScorer
+    from autointent.modules.base import BaseDecision, BaseRegex, BaseScorer
 
 
 class Pipeline:
@@ -41,7 +41,7 @@ class Pipeline:
         self,
         nodes: list[NodeOptimizer] | list[InferenceNode],
         sampler: SamplerType = "brute",
-        seed: int = 42,
+        seed: int | None = 42,
     ) -> None:
         """Initialize the pipeline optimizer.
 
@@ -85,7 +85,7 @@ class Pipeline:
             assert_never(config)
 
     @classmethod
-    def from_search_space(cls, search_space: list[dict[str, Any]] | Path | str, seed: int = 42) -> "Pipeline":
+    def from_search_space(cls, search_space: list[dict[str, Any]] | Path | str, seed: int | None = 42) -> "Pipeline":
         """Search space to pipeline optimizer.
 
         Args:
@@ -101,7 +101,7 @@ class Pipeline:
         return cls(nodes=nodes, seed=seed)
 
     @classmethod
-    def from_preset(cls, name: SearchSpacePresets, seed: int = 42) -> "Pipeline":
+    def from_preset(cls, name: SearchSpacePresets, seed: int | None = 42) -> "Pipeline":
         optimization_config = load_preset(name)
         config = OptimizationConfig(seed=seed, **optimization_config)
         return cls.from_optimization_config(config=config)
@@ -186,7 +186,7 @@ class Pipeline:
             msg = "Pipeline in inference mode cannot be fitted"
             raise RuntimeError(msg)
 
-        context = Context()
+        context = Context(self.seed)
         context.set_dataset(dataset, self.data_config)
         context.configure_logging(self.logging_config)
         context.configure_transformer(self.embedder_config)
@@ -199,24 +199,42 @@ class Pipeline:
             self._logger.warning(
                 "Test data is not provided. Final test metrics won't be calculated after pipeline optimization."
             )
+        elif context.logging_config.clear_ram and not context.logging_config.dump_modules:
+            self._logger.warning(
+                "Test data is provided, but final metrics won't be calculated "
+                "because fitted modules won't be saved neither in RAM nor in file system."
+                "Change settings in LoggerConfig to obtain different behavior."
+            )
 
         if sampler is None:
             sampler = self.sampler
 
         self._fit(context, sampler)
 
-        if context.is_ram_to_clear():
+        if context.logging_config.clear_ram and context.logging_config.dump_modules:
             nodes_configs = context.optimization_info.get_inference_nodes_config()
             nodes_list = [InferenceNode.from_config(cfg) for cfg in nodes_configs]
-        else:
+        elif not context.logging_config.clear_ram:
             modules_dict = context.optimization_info.get_best_modules()
             nodes_list = [InferenceNode(module, node_type) for node_type, module in modules_dict.items()]
+        else:
+            self._logger.info(
+                "Skipping calculating final metrics because fitted modules weren't saved."
+                "Change settings in LoggerConfig to obtain different behavior."
+            )
+            return context
 
-        self.nodes = {node.node_type: node for node in nodes_list}
+        self.nodes = {node.node_type: node for node in nodes_list if node.node_type != NodeType.embedding}
 
         if refit_after:
-            # TODO reflect this refitting in dumped version of pipeline
             self._refit(context)
+
+        self._nodes_configs: dict[str, InferenceNodeConfig] = {
+            NodeType(cfg.node_type): cfg
+            for cfg in context.optimization_info.get_inference_nodes_config()
+            if cfg.node_type != NodeType.embedding
+        }
+        self._dump_dir = context.logging_config.dirpath
 
         if test_utterances is not None:
             predictions = self.predict(test_utterances)
@@ -229,6 +247,41 @@ class Pipeline:
 
         return context
 
+    def dump(self, path: str | Path | None = None) -> None:
+        if isinstance(path, str):
+            path = Path(path)
+        elif path is None:
+            if hasattr(self, "_dump_dir"):
+                path = self._dump_dir
+            else:
+                msg = (
+                    "Either you didn't trained the pipeline yet or fitted modules weren't saved during optimization. "
+                    "Change settings in LoggerConfig and retrain the pipeline to obtain different behavior."
+                )
+                self._logger.error(msg)
+                raise RuntimeError(msg)
+
+        scoring_module: BaseScorer = self.nodes[NodeType.scoring].module  # type: ignore[assignment,union-attr]
+        decision_module: BaseDecision = self.nodes[NodeType.decision].module  # type: ignore[assignment,union-attr]
+
+        scoring_dump_dir = str(path / "scoring_module")
+        decision_dump_dir = str(path / "decision_module")
+        scoring_module.dump(scoring_dump_dir)
+        decision_module.dump(decision_dump_dir)
+
+        self._nodes_configs[NodeType.scoring].load_path = scoring_dump_dir
+        self._nodes_configs[NodeType.decision].load_path = decision_dump_dir
+
+        if NodeType.regex in self.nodes:
+            regex_module: BaseRegex = self.nodes[NodeType.regex].module  # type: ignore[assignment,union-attr]
+            regex_dump_dir = str(path / "regex_module")
+            regex_module.dump(regex_dump_dir)
+            self._nodes_configs[NodeType.regex].load_path = regex_dump_dir
+
+        inference_nodes_configs = [cfg.asdict() for cfg in self._nodes_configs.values()]
+        with (path / "inference_config.yaml").open("w") as file:
+            yaml.dump(inference_nodes_configs, file)
+
     def validate_modules(self, dataset: Dataset, mode: SearchSpaceValidationMode) -> None:
         """Validate modules with dataset.
 
@@ -239,18 +292,6 @@ class Pipeline:
         for node in self.nodes.values():
             if isinstance(node, NodeOptimizer):
                 node.validate_nodes_with_dataset(dataset, mode)
-
-    @classmethod
-    def from_dict_config(cls, nodes_configs: list[dict[str, Any]]) -> "Pipeline":
-        """Create inference pipeline from dictionary config.
-
-        Args:
-            nodes_configs: list of config for nodes
-
-        Returns:
-            Inference pipeline
-        """
-        return cls.from_config([InferenceNodeConfig(**cfg) for cfg in nodes_configs])
 
     @classmethod
     def from_config(cls, nodes_configs: list[InferenceNodeConfig]) -> "Pipeline":
@@ -283,13 +324,13 @@ class Pipeline:
             Inference pipeline
         """
         with (Path(path) / "inference_config.yaml").open() as file:
-            inference_dict_config: dict[str, Any] = yaml.safe_load(file)
+            inference_nodes_configs: list[dict[str, Any]] = yaml.safe_load(file)
 
         inference_config = [
             InferenceNodeConfig(
                 **node_config, embedder_config=embedder_config, cross_encoder_config=cross_encoder_config
             )
-            for node_config in inference_dict_config["nodes_configs"]
+            for node_config in inference_nodes_configs
         ]
 
         return cls.from_config(inference_config)
