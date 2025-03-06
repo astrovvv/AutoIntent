@@ -23,13 +23,9 @@ class LogregAimedEmbedding(BaseEmbedding):
     The main purpose of this module is to be used at embedding node for optimizing
     embedding configuration using its logreg classification quality as a sort of proxy metric.
 
-    Attributes:
-        _classifier: The trained logistic regression model
-        _label_encoder: Label encoder for converting labels to numerical format
-        name: Name of the module, defaults to "logreg"
-        supports_multiclass: Whether the module supports multiclass classification
-        supports_multilabel: Whether the module supports multilabel classification
-        supports_oos: Whether the module supports out-of-scope detection
+    Args:
+        embedder_config: Config of the embedder used for creating embeddings
+        cv: Number of folds used in LogisticRegressionCV
 
     Examples:
     --------
@@ -57,12 +53,6 @@ class LogregAimedEmbedding(BaseEmbedding):
         embedder_config: EmbedderConfig | str | dict[str, Any],
         cv: PositiveInt = 3,
     ) -> None:
-        """Initialize the LogregAimedEmbedding.
-
-        Args:
-            embedder_config: Config of the embedder used for creating embeddings
-            cv: Number of folds used in LogisticRegressionCV
-        """
         self.embedder_config = EmbedderConfig.from_search_config(embedder_config)
         self.cv = cv
 
@@ -83,9 +73,6 @@ class LogregAimedEmbedding(BaseEmbedding):
             context: Context containing configurations and utilities
             cv: Number of folds used in LogisticRegressionCV
             embedder_config: Config of the embedder to use
-
-        Returns:
-            Initialized LogregAimedEmbedding instance
         """
         return cls(
             cv=cv,

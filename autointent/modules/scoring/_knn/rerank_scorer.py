@@ -18,9 +18,18 @@ class RerankScorer(KNNScorer):
 
     This module uses a cross-encoder to re-rank the nearest neighbors retrieved by a KNN scorer.
 
-    Attributes:
-        name: Name of the scorer, defaults to "rerank"
-        _scorer: Ranker instance for re-ranking
+    Args:
+        embedder_config: Config of the embedder used for vectorization
+        k: Number of closest neighbors to consider during inference
+        weights: Weighting strategy:
+
+            - "uniform": Equal weight for all neighbors
+            - "distance": Weight inversely proportional to distance
+            - "closest": Only the closest neighbor of each class is weighted
+
+        cross_encoder_config: Config of the cross-encoder model used for re-ranking
+        m: Number of top-ranked neighbors to consider, or None to use k
+        rank_threshold_cutoff: Rank threshold cutoff for re-ranking, or None
     """
 
     name = "rerank"
@@ -35,19 +44,6 @@ class RerankScorer(KNNScorer):
         cross_encoder_config: CrossEncoderConfig | str | dict[str, Any] | None = None,
         embedder_config: EmbedderConfig | str | dict[str, Any] | None = None,
     ) -> None:
-        """Initialize the RerankScorer.
-
-        Args:
-            embedder_config: Config of the embedder used for vectorization
-            k: Number of closest neighbors to consider during inference
-            weights: Weighting strategy:
-                - "uniform": Equal weight for all neighbors
-                - "distance": Weight inversely proportional to distance
-                - "closest": Only the closest neighbor of each class is weighted
-            cross_encoder_config: Config of the cross-encoder model used for re-ranking
-            m: Number of top-ranked neighbors to consider, or None to use k
-            rank_threshold_cutoff: Rank threshold cutoff for re-ranking, or None
-        """
         super().__init__(
             embedder_config=embedder_config,
             k=k,
@@ -91,9 +87,6 @@ class RerankScorer(KNNScorer):
                 or None to use the best existing embedder
             m: Number of top-ranked neighbors to consider, or None to use k
             rank_threshold_cutoff: Rank threshold cutoff for re-ranking, or None
-
-        Returns:
-            An instance of RerankScorer
         """
         if embedder_config is None:
             embedder_config = context.resolve_embedder()

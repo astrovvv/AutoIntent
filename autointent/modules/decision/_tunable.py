@@ -27,14 +27,11 @@ class TunableDecision(BaseDecision):
     in single-label or multi-label classification tasks. It is designed for datasets with varying
     score distributions and supports out-of-scope (OOS) detection.
 
-    Attributes:
-        name: Name of the predictor, defaults to "tunable"
-        _n_classes: Number of classes determined during fitting
-        _multilabel: Whether the task is multilabel
+    Args:
+        target_metric: Metric to optimize during threshold tuning
+        n_optuna_trials: Number of optimization trials
+        seed: Random seed for reproducibility
         tags: Tags for predictions (if any)
-        supports_multilabel: Whether the module supports multilabel classification
-        supports_multiclass: Whether the module supports multiclass classification
-        supports_oos: Whether the module supports out-of-scope samples
 
     Examples:
     --------
@@ -88,14 +85,6 @@ class TunableDecision(BaseDecision):
         seed: int | None = 0,
         tags: list[Tag] | None = None,
     ) -> None:
-        """Initialize tunable predictor.
-
-        Args:
-            target_metric: Metric to optimize during threshold tuning
-            n_optuna_trials: Number of optimization trials
-            seed: Random seed for reproducibility
-            tags: Tags for predictions (if any)
-        """
         self.target_metric = target_metric
         self.n_optuna_trials = n_optuna_trials
         self.seed = seed
@@ -119,9 +108,6 @@ class TunableDecision(BaseDecision):
             context: Context containing configurations and utilities
             target_metric: Metric to optimize during threshold tuning
             n_optuna_trials: Number of optimization trials
-
-        Returns:
-            Initialized TunableDecision instance
         """
         return cls(
             target_metric=target_metric,

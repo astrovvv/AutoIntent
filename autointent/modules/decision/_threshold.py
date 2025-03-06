@@ -23,14 +23,8 @@ class ThresholdDecision(BaseDecision):
     ThresholdDecision uses a predefined threshold (or array of thresholds) to predict
     labels for single-label or multi-label classification tasks.
 
-    Attributes:
-        tags: Tags for predictions (if any)
-        name: Name of the predictor, defaults to "threshold"
-        supports_oos: Whether the module supports out-of-scope samples
-        supports_multilabel: Whether the module supports multilabel classification
-        supports_multiclass: Whether the module supports multiclass classification
-        _multilabel: Whether the task is multilabel
-        _n_classes: Number of classes in the dataset
+    Args:
+        thresh: Threshold for the scores, shape (n_classes,) or float
 
     Examples:
     --------
@@ -82,11 +76,6 @@ class ThresholdDecision(BaseDecision):
         self,
         thresh: FloatFromZeroToOne | list[FloatFromZeroToOne] = 0.5,
     ) -> None:
-        """Initialize threshold predictor.
-
-        Args:
-            thresh: Threshold for the scores, shape (n_classes,) or float
-        """
         val_error = False
         self.thresh = thresh if isinstance(thresh, float) else np.array(thresh)
         if isinstance(thresh, float):
@@ -107,9 +96,6 @@ class ThresholdDecision(BaseDecision):
         Args:
             context: Context containing configurations and utilities
             thresh: Threshold for classification
-
-        Returns:
-            Initialized ThresholdDecision instance
         """
         return cls(
             thresh=thresh,

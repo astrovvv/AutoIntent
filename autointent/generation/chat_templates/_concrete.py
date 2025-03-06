@@ -1,16 +1,15 @@
-"""Chat template for evolution augmentation via reasoning."""
+"""Chat template for evolution augmentation via concretizing."""
 
 from typing import ClassVar
 
-from autointent.generation.utterances.schemas import Message, Role
+from ._base_evolver import EvolutionChatTemplate
+from ._evolution_templates_schemas import Message, Role
 
-from .base import EvolutionChatTemplate
 
+class ConcreteEvolution(EvolutionChatTemplate):
+    """Chat template for evolution augmentation via concretizing."""
 
-class ReasoningEvolution(EvolutionChatTemplate):
-    """Chat template for evolution augmentation via reasoning."""
-
-    name = "reasoning"
+    name = "concrete"
 
     _messages: ClassVar[list[Message]] = [
         Message(
@@ -23,17 +22,14 @@ class ReasoningEvolution(EvolutionChatTemplate):
                 "2. Rewritten utterance should be concise and understandable by humans.\n"
                 "3. Rewritten utterance must be fully answerable.\n"
                 "4. Rewritten utterance should not contain more than 10 words.\n\n"
-                "Intent name: Asking for Directions\n"
-                "Utterance: How do I get to the nearest coffee shop?"
+                "Intent name: Reserve Restaurant\n"
+                "Utterance: I want to make a reservation for dinner tonight."
             ),
         ),
-        Message(role=Role.ASSISTANT, content="If there are some place where I can buy a coffee, how can I get there?"),
+        Message(role=Role.ASSISTANT, content="I want to reserve a table for 4 persons at 9 pm."),
         Message(
             role=Role.USER,
-            content=(
-                "Intent name: requesting technical support\n"
-                "Utterance: I want to get help from technical support for my laptop."
-            ),
+            content="Intent name: requesting technical support\nUtterance: I'm having trouble with my laptop.",
         ),
-        Message(role=Role.ASSISTANT, content="I don't know what's happening with my laptop."),
+        Message(role=Role.ASSISTANT, content="My laptop is constantly rebooting and overheating."),
     ]

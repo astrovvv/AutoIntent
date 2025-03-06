@@ -4,10 +4,8 @@ import logging
 from argparse import ArgumentParser
 
 from autointent import load_dataset
-from autointent.generation.utterances.basic.utterance_generator import UtteranceGenerator
-from autointent.generation.utterances.generator import Generator
-
-from .chat_templates import EnglishSynthesizerTemplate, RussianSynthesizerTemplate
+from autointent.generation.chat_templates import EnglishSynthesizerTemplate, RussianSynthesizerTemplate
+from autointent.generation.utterances import Generator, UtteranceGenerator
 
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
@@ -69,7 +67,3 @@ def main() -> None:
 
     if args.output_repo is not None:
         dataset.push_to_hub(args.output_repo, private=args.private)
-
-
-if __name__ == "__main__":
-    main()
