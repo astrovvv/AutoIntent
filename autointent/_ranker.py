@@ -87,19 +87,15 @@ def construct_samples(
 class Ranker:
     """Cross-encoder for Natural Language Inference (NLI).
 
-    This class uses a SentenceTransformers Ranker model to extract features.
-    It can use either the model's classifier or a custom trained LogisticRegressionCV
+    This class uses :py:class:`sentence_transformers.cross_encoder.CrossEncoder` model to extract features.
+    It can use either the model's classifier or a custom trained :py:class:`sklearn.linear_model.LogisticRegressionCV`
     to rank documents using similarity scores to the query.
-
-    Attributes:
-        cross_encoder: The Ranker model used to extract features
-        batch_size: Batch size for processing text pairs
-        _clf: The trained LogisticRegressionCV classifier
-        model_subdir: Directory for storing cross-encoder model files
     """
 
-    metadata_file_name = "metadata.json"
-    classifier_file_name = "classifier.joblib"
+    _metadata_file_name = "metadata.json"
+    _classifier_file_name = "classifier.joblib"
+    config: CrossEncoderConfig
+    cross_encoder: st.CrossEncoder
 
     def __init__(
         self,
@@ -112,18 +108,18 @@ class Ranker:
             cross_encoder_config: Configuration for the cross-encoder model
             classifier_head: Optional pre-trained classifier head
         """
-        self.cross_encoder_config = CrossEncoderConfig.from_search_config(cross_encoder_config)
+        self.config = CrossEncoderConfig.from_search_config(cross_encoder_config)
         self.cross_encoder = st.CrossEncoder(
-            self.cross_encoder_config.model_name,
+            self.config.model_name,
             trust_remote_code=True,
-            device=self.cross_encoder_config.device,
-            max_length=self.cross_encoder_config.max_length,  # type: ignore[arg-type]
+            device=self.config.device,
+            max_length=self.config.max_length,  # type: ignore[arg-type]
         )
-        self.train_head = False
+        self._train_head = False
         self._clf = classifier_head
 
-        if classifier_head is not None or self.cross_encoder_config.train_head:
-            self.train_head = True
+        if classifier_head is not None or self.config.train_head:
+            self._train_head = True
             self._activations_list: list[npt.NDArray[Any]] = []
             self._hook_handler = self.cross_encoder.model.classifier.register_forward_hook(self._classifier_hook)
 
@@ -147,16 +143,16 @@ class Ranker:
         Returns:
             Array of extracted features or predictions
         """
-        if not self.train_head:
+        if not self._train_head:
             return np.array(
                 self.cross_encoder.predict(
                     pairs,
-                    batch_size=self.cross_encoder_config.batch_size,
+                    batch_size=self.config.batch_size,
                     activation_fct=nn.Sigmoid(),
                 )
             )
 
-        self.cross_encoder.predict(pairs, batch_size=self.cross_encoder_config.batch_size)
+        self.cross_encoder.predict(pairs, batch_size=self.config.batch_size)
         res = np.concatenate(self._activations_list, axis=0)
         self._activations_list.clear()
         return res  # type: ignore[no-any-return]
@@ -189,7 +185,7 @@ class Ranker:
             utterances: List of utterances (texts)
             labels: Intent class labels corresponding to the utterances
         """
-        if not self.train_head:
+        if not self._train_head:
             return
 
         pairs, labels_ = construct_samples(utterances, labels, balancing_factor=1)
@@ -207,7 +203,7 @@ class Ranker:
         Raises:
             ValueError: If classifier is not trained yet
         """
-        if self.train_head and self._clf is None:
+        if self._train_head and self._clf is None:
             msg = "Classifier is not trained yet"
             raise ValueError(msg)
 
@@ -253,17 +249,17 @@ class Ranker:
         dump_dir.mkdir(parents=True)
 
         metadata = CrossEncoderMetadata(
-            model_name=self.cross_encoder_config.model_name,
-            train_head=self.train_head,
-            device=self.cross_encoder_config.device,
-            max_length=self.cross_encoder_config.max_length,
-            batch_size=self.cross_encoder_config.batch_size,
+            model_name=self.config.model_name,
+            train_head=self._train_head,
+            device=self.config.device,
+            max_length=self.config.max_length,
+            batch_size=self.config.batch_size,
         )
 
-        with (dump_dir / self.metadata_file_name).open("w") as file:
+        with (dump_dir / self._metadata_file_name).open("w") as file:
             json.dump(metadata, file, indent=4)
 
-        joblib.dump(self._clf, dump_dir / self.classifier_file_name)
+        joblib.dump(self._clf, dump_dir / self._classifier_file_name)
 
     @classmethod
     def load(cls, path: Path, override_config: CrossEncoderConfig | None = None) -> "Ranker":
@@ -276,9 +272,9 @@ class Ranker:
         Returns:
             Initialized Ranker instance
         """
-        clf = joblib.load(path / cls.classifier_file_name)
+        clf = joblib.load(path / cls._classifier_file_name)
 
-        with (path / cls.metadata_file_name).open() as file:
+        with (path / cls._metadata_file_name).open() as file:
             metadata: CrossEncoderMetadata = json.load(file)
 
         if override_config is not None:

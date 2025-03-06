@@ -22,9 +22,9 @@ from docs_utils.skip_members import skip_member  # noqa: E402
 from docs_utils.versions_generator import generate_versions_json  # noqa: E402
 
 project = "AutoIntent"
-copyright = "2024, DeepPavlov"
+copyright = "2025, DeepPavlov"
 author = "DeepPavlov"
-release = "0.0.1"
+release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -64,6 +64,10 @@ intersphinx_mapping = {
     "pydantic": ("https://docs.pydantic.dev/latest/", None),
     "datasets": ("https://huggingface.co/docs/datasets/master/en/", None),
     "transformers": ("https://huggingface.co/docs/transformers/master/en/", None),
+    "sklearn": ("https://scikit-learn.org/stable", None),
+    "sentence-transformers": ("https://sbert.net/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "optuna": ("https://optuna.readthedocs.io/en/stable/", None),
 }
 
 autoapi_keep_files = True
@@ -156,7 +160,7 @@ nbsphinx_custom_formats = {".py": "docs_utils.notebook.py_percent_to_notebook"}
 nbsphinx_prolog = """
 :tutorial_name: {{ env.docname }}
 """
-# nbsphinx_execute = "never"
+nbsphinx_execute = "never"
 nbsphinx_thumbnails = {
     "user_guides/*": "_static/square-white.svg",
 }
@@ -165,7 +169,7 @@ mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 
 # sphinx_multiversion
 # Whitelist for tags matching v1.0.0, v2.1.0 format
-# smv_tag_whitelist = r'^v\d+\.\d+\.\d+$'
+# smv_tag_whitelist = r"^v\d+\.\d+\.\d+$"
 smv_tag_whitelist = r"^.*$"
 
 # Whitelist for the dev branch
