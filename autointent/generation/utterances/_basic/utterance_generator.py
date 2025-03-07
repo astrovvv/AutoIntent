@@ -7,8 +7,8 @@ from datasets import concatenate_datasets
 
 from autointent import Dataset
 from autointent.custom_types import Split
+from autointent.generation import Generator
 from autointent.generation.chat_templates import BaseSynthesizerTemplate
-from autointent.generation.utterances.generator import Generator
 from autointent.schemas import Intent, Sample
 
 
@@ -23,9 +23,26 @@ class UtteranceGenerator:
         generator: Generator instance for generating utterances.
         prompt_maker: Prompt maker instance for generating prompts.
         async_mode: Whether to use asynchronous mode for generation.
+
+    Usage
+    -----
+
+    .. code-block:: python
+
+        from autointent import Dataset
+        from autointent.generation import Generator
+        from autointent.generation.utterances import UtteranceGenerator
+        from autointent.generation.chat_templates import RussianSynthesizerTemplate
+
+        dataset = Dataset.from_json(path_to_json)
+        generator = Generator()
+        prompt = RussianSynthesizerTemplate(dataset)
+        augmenter = UtteranceGenerator(generator, prompt_maker=prompt)
+        augmenter.augment(dataset)
+
     """
 
-    def __init__(self, generator: Generator, prompt_maker: BaseSynthesizerTemplate, async_mode: bool = False) -> None:  # noqa: D107
+    def __init__(self, generator: Generator, prompt_maker: BaseSynthesizerTemplate, async_mode: bool = False) -> None:
         self.generator = generator
         self.prompt_maker = prompt_maker
         self.async_mode = async_mode

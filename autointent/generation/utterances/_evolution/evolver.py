@@ -12,8 +12,8 @@ from datasets import concatenate_datasets
 
 from autointent import Dataset
 from autointent.custom_types import Split
+from autointent.generation import Generator
 from autointent.generation.chat_templates import EvolutionChatTemplate
-from autointent.generation.utterances.generator import Generator
 from autointent.schemas import Intent
 
 
@@ -28,9 +28,25 @@ class UtteranceEvolver:
         prompt_makers: List of prompt makers for generating prompts.
         seed: Random seed for reproducibility.
         async_mode: Whether to use asynchronous mode for generation.
+
+    Usage
+    -----
+
+    .. code-block:: python
+
+        from autointent import Dataset
+        from autointent.generation import Generator
+        from autointent.generation.utterances import UtteranceEvolver
+        from autointent.generation.chat_templates import GoofyEvolution, InformalEvolution
+
+        dataset = Dataset.from_json(path_to_json)
+        generator = Generator()
+        evolver = UtteranceEvolver(generator, prompt_makers=[GoofyEvolution(), InformalEvolution()])
+        evolver.augment(dataset)
+
     """
 
-    def __init__(  # noqa: D107
+    def __init__(
         self,
         generator: Generator,
         prompt_makers: Sequence[EvolutionChatTemplate],

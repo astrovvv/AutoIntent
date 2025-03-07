@@ -4,12 +4,14 @@ import logging
 from argparse import ArgumentParser, Namespace
 
 from autointent import load_dataset
+from autointent.generation import Generator
 from autointent.generation.chat_templates import (
     EVOLUTION_MAPPING,
     EVOLUTION_NAMES,
 )
-from autointent.generation.utterances.evolution import IncrementalUtteranceEvolver, UtteranceEvolver
-from autointent.generation.utterances.generator import Generator
+
+from .evolver import UtteranceEvolver
+from .incremental_evolver import IncrementalUtteranceEvolver
 
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)
