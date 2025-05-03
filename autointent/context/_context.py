@@ -69,6 +69,10 @@ class Context:
         """
         self.data_handler = DataHandler(dataset=dataset, random_seed=self.seed, config=config)
 
+    def dump_optimization_info(self) -> None:
+        """Save optimization info to disk."""
+        self.optimization_info.dump(self.logging_config.dirpath)
+
     def dump(self) -> None:
         """Save all information about optimization process to disk.
 
@@ -77,7 +81,7 @@ class Context:
         self._logger.debug("dumping logs...")
         logs_dir = self.logging_config.dirpath
 
-        self.optimization_info.dump(logs_dir)
+        self.dump_optimization_info()
         self.data_handler.dataset.to_json(logs_dir / "dataset.json")
 
         self._logger.info("logs and other assets are saved to %s", logs_dir)
@@ -87,7 +91,7 @@ class Context:
         with inference_config_path.open("w") as file:
             yaml.dump(inference_config, file)
 
-    def load(self) -> None:
+    def load_optimization_info(self) -> None:
         """Restore the context state to resume the optimization process.
 
         Raises:
@@ -124,7 +128,7 @@ class Context:
     def has_saved_modules(self) -> bool:
         """Check if any modules have been saved in RAM."""
         node_types = ["regex", "embedding", "scoring", "decision"]
-        return any(len(self.optimization_info.modules.get(nt)) > 0 for nt in node_types)
+        return any(self.optimization_info.modules.get(nt) is not None for nt in node_types)
 
     def resolve_embedder(self) -> EmbedderConfig:
         """Resolve the embedder configuration.

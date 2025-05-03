@@ -148,26 +148,18 @@ class NodeOptimizer:
         context.callback_handler.log_metrics(all_metrics)
         context.callback_handler.end_module()
 
-        dump_dir = context.get_dump_dir()
-
-        if dump_dir is not None:
-            module_dump_dir = self.get_module_dump_dir(dump_dir, module_name, self._counter)
-            module.dump(module_dump_dir)
-        else:
-            module_dump_dir = None
-
         context.optimization_info.log_module_optimization(
-            self.node_info.node_type,
-            module_name,
-            config,
-            target_metric,
-            self.target_metric,
-            final_metrics,
-            module.get_assets(),  # retriever name / scores / predictions
-            module_dump_dir,
-            module=module if not context.is_ram_to_clear() else None,
+            node_type=self.node_info.node_type,
+            module_name=module_name,
+            module_params=config,
+            metric_value=target_metric,
+            metric_name=self.target_metric,
+            metrics=final_metrics,
+            artifact=module.get_assets(),  # retriever name / scores / predictions
+            module_dump_dir=self.get_module_dump_dir(context, module_name, self._counter),
+            module=module,
         )
-        context.dump()
+        context.dump_optimization_info()
 
         if context.is_ram_to_clear():
             module.clear_cache()
@@ -234,17 +226,20 @@ class NodeOptimizer:
         except ValueError:
             return None
 
-    def get_module_dump_dir(self, dump_dir: Path, module_name: str, j_combination: int) -> str:
+    def get_module_dump_dir(self, context: Context, module_name: str, j_combination: int) -> str | None:
         """Creates and returns the path to the module dump directory.
 
         Args:
-            dump_dir: The base directory for storing module dumps.
+            context: The context object.
             module_name: The name of the module being optimized.
             j_combination: The combination index for the parameters.
 
         Returns:
             The path to the module dump directory.
         """
+        dump_dir = context.get_dump_dir()
+        if dump_dir is None:
+            return None
         dump_dir_ = dump_dir / self.node_info.node_type / module_name / f"comb_{j_combination}"
         dump_dir_.mkdir(parents=True, exist_ok=True)
         return str(dump_dir_)
@@ -386,7 +381,7 @@ def load_or_create_study(
             # Calculate remaining trials if n_trials is specified
             remaining_trials = n_trials if n_trials is None else max(0, n_trials - len(study.trials))
 
-        context.load()
+        context.load_optimization_info()
         return study, finished_trials, remaining_trials  # noqa: TRY300
     except Exception:  # noqa: BLE001
         # Create a new study if none exists
