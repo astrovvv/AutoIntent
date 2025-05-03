@@ -4,13 +4,16 @@ This module handles the tracking and logging of optimization artifacts,
 trials, and modules during the pipeline's execution.
 """
 
+import json
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
 
+from autointent._dump_tools import Dumper
 from autointent.configs import EmbedderConfig, InferenceNodeConfig
 from autointent.custom_types import NodeType
 
@@ -18,6 +21,9 @@ from ._data_models import Artifact, Artifacts, EmbeddingArtifact, ScorerArtifact
 
 if TYPE_CHECKING:
     from autointent.modules.base import BaseModule
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,6 +62,19 @@ class ModulesList:
         """
         self.get(node_type).append(module)
 
+    def model_dump(self) -> dict[str, list["BaseModule"]]:
+        """Dump the modules to a dictionary format.
+
+        Returns:
+            Dictionary representation of the modules.
+        """
+        return {
+            "regex": self.regex,
+            "embedding": self.embedding,
+            "scoring": self.scoring,
+            "decision": self.decision,
+        }
+
 
 class OptimizationInfo:
     """Tracks optimization results, including trials, artifacts, and modules.
@@ -73,8 +92,6 @@ class OptimizationInfo:
 
     def __init__(self) -> None:
         """Initialize optimization info."""
-        self._logger = logging.getLogger(__name__)
-
         self.artifacts = Artifacts()
         self.trials = Trials()
         self._trials_best_ids = TrialsIds()
@@ -115,7 +132,7 @@ class OptimizationInfo:
             metrics=metrics,
         )
         self.trials.add_trial(node_type, trial)
-        self._logger.debug("module %s fitted and saved to optimization info", module_name, extra=trial.model_dump())
+        logger.debug("module %s fitted and saved to optimization info %s", module_name, json.dumps(trial.model_dump()))
 
         if module:
             self.modules.add_module(node_type, module)
@@ -225,7 +242,18 @@ class OptimizationInfo:
             "pipeline_metrics": self.pipeline_metrics,
             "metrics": node_wise_metrics,
             "configs": self.trials.model_dump(),
+            "artifacts": self.artifacts.model_dump(),
+            "modules": self.modules.model_dump(),
         }
+
+    def dump(self, path: Path) -> None:
+        """Dump the optimization information to a file."""
+        exclude = [ModulesList]
+        Dumper.dump(self, path / "optimization_info", exists_ok=True, exclude=exclude)
+
+    def load(self, path: Path) -> None:
+        """Load the optimization information from a file."""
+        Dumper.load(self, path / "optimization_info")
 
     def get_inference_nodes_config(self, asdict: bool = False) -> list[InferenceNodeConfig]:
         """Generate configuration for inference nodes based on the best trials.
