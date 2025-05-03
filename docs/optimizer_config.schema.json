@@ -226,22 +226,27 @@
                     "title": "Passage Prompt"
                 },
                 "similarity_fn_name": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
                     "default": "cosine",
-                    "description": "Name of the similarity function to use (cosine, dot, euclidean, manhattan).",
-                    "title": "Similarity Fn Name"
+                    "description": "Name of the similarity function to use.",
+                    "enum": [
+                        "cosine",
+                        "dot",
+                        "euclidean",
+                        "manhattan"
+                    ],
+                    "title": "Similarity Fn Name",
+                    "type": "string"
                 },
                 "use_cache": {
-                    "default": false,
+                    "default": true,
                     "description": "Whether to use embeddings caching.",
                     "title": "Use Cache",
+                    "type": "boolean"
+                },
+                "freeze": {
+                    "default": true,
+                    "description": "Whether to freeze the model parameters.",
+                    "title": "Freeze",
                     "type": "boolean"
                 }
             },
@@ -418,7 +423,8 @@
                 "query_prompt": null,
                 "passage_prompt": null,
                 "similarity_fn_name": "cosine",
-                "use_cache": false
+                "use_cache": true,
+                "freeze": true
             }
         },
         "cross_encoder_config": {
