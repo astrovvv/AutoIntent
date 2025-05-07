@@ -36,10 +36,10 @@ class RerankScorer(KNNScorer):
 
     def __init__(
         self,
-        k: int,
+        k: PositiveInt = 5,
         weights: WeightType = "distance",
         use_crosencoder_scores: bool = False,
-        m: int | None = None,
+        m: PositiveInt | None = None,
         cross_encoder_config: CrossEncoderConfig | str | dict[str, Any] | None = None,
         embedder_config: EmbedderConfig | str | dict[str, Any] | None = None,
     ) -> None:
@@ -62,7 +62,7 @@ class RerankScorer(KNNScorer):
     def from_context(
         cls,
         context: Context,
-        k: int,
+        k: PositiveInt = 5,
         weights: WeightType = "distance",
         m: PositiveInt | None = None,
         cross_encoder_config: CrossEncoderConfig | str | None = None,

@@ -20,6 +20,7 @@ from transformers import (  # type: ignore[attr-defined]
 
 from autointent import Embedder, Ranker, VectorIndex
 from autointent.configs import CrossEncoderConfig, EmbedderConfig
+from autointent.context.optimization_info import Artifact
 from autointent.schemas import TagsList
 
 ModuleSimpleAttributes = None | str | int | float | bool | list  # type: ignore[type-arg]
@@ -83,7 +84,7 @@ class Dumper:
         Dumper.make_subdirectories(path, exists_ok)
 
         for key, val in attrs.items():
-            if exclude and isinstance(val, tuple(exclude)):
+            if isinstance(val, Artifact) or (exclude and isinstance(val, tuple(exclude))):
                 continue
             if isinstance(val, TagsList):
                 val.dump(path / Dumper.tags / key)
