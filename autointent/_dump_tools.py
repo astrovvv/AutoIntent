@@ -11,7 +11,6 @@ from catboost import CatBoostClassifier
 from peft import PeftModel
 from pydantic import BaseModel
 from sklearn.base import BaseEstimator
-from torch import nn
 from transformers import (  # type: ignore[attr-defined]
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -21,7 +20,7 @@ from transformers import (  # type: ignore[attr-defined]
 )
 
 from autointent import Embedder, Ranker, VectorIndex
-from autointent._wrappers import BaseTorchModule
+from autointent._wrappers import BaseTorchModuleWithVocab
 from autointent.configs import CrossEncoderConfig, EmbedderConfig
 from autointent.context.optimization_info import Artifact
 from autointent.schemas import TagsList
@@ -29,7 +28,14 @@ from autointent.schemas import TagsList
 ModuleSimpleAttributes = None | str | int | float | bool | list  # type: ignore[type-arg]
 
 ModuleAttributes: TypeAlias = (
-    ModuleSimpleAttributes | TagsList | np.ndarray | Embedder | VectorIndex | BaseEstimator | Ranker | nn.Module  # type: ignore[type-arg]
+    ModuleSimpleAttributes
+    | TagsList
+    | np.ndarray  # type: ignore[type-arg]
+    | Embedder
+    | VectorIndex
+    | BaseEstimator
+    | Ranker
+    | BaseTorchModuleWithVocab
 )
 
 logger = logging.getLogger(__name__)
@@ -75,7 +81,13 @@ class Dumper:
             subdir.mkdir(parents=True, exist_ok=exists_ok)
 
     @staticmethod
-    def dump(obj: Any, path: Path, exists_ok: bool = False, exclude: list[type[Any]] | None = None) -> None:  # noqa: ANN401, C901, PLR0912, PLR0915
+    def dump(  # noqa: C901, PLR0912, PLR0915
+        obj: Any,  # noqa: ANN401
+        path: Path,
+        exists_ok: bool = False,
+        exclude: list[type[Any]] | None = None,
+        raise_errors: bool = False,
+    ) -> None:
         """Dump modules attributes to filestystem.
 
         Args:
@@ -83,6 +95,7 @@ class Dumper:
             path: Path to dump to
             exists_ok: If True, do not raise an error if the directory already exists
             exclude: List of types to exclude from dumping
+            raise_errors: whether to raise dumping errors or just log
         """
         attrs: dict[str, ModuleAttributes] = vars(obj)
         simple_attrs = {}
@@ -119,6 +132,8 @@ class Dumper:
                 except Exception as e:
                     msg = f"Error dumping pydantic model {key}: {e}"
                     logging.exception(msg)
+                    if raise_errors:
+                        raise
             elif isinstance(val, PeftModel):
                 # dumping peft models is a nightmare...
                 # this might break with new versions of peft
@@ -126,18 +141,20 @@ class Dumper:
                     if val._is_prompt_learning:  # noqa: SLF001
                         # strategy to save prompt learning models: save prompt encoder and bert classifier separately
                         model_path = path / Dumper.ptuning_models / key
-                        model_path.mkdir(parents=True, exist_ok=True)
+                        model_path.mkdir(parents=True, exist_ok=exists_ok)
                         val.save_pretrained(str(model_path / "peft"))
                         val.base_model.save_pretrained(model_path / "base_model")  # type: ignore[attr-defined]
                     else:
                         # strategy to save lora models: merge adapters and save as usual hugging face model
                         model_path = path / Dumper.hf_models / key
-                        model_path.mkdir(parents=True, exist_ok=True)
+                        model_path.mkdir(parents=True, exist_ok=exists_ok)
                         merged_model: PreTrainedModel = val.merge_and_unload()
                         merged_model.save_pretrained(model_path)  # type: ignore[attr-defined]
                 except Exception as e:
                     msg = f"Error dumping PeftModel {key}: {e}"
                     logger.exception(msg)
+                    if raise_errors:
+                        raise
             elif isinstance(val, PreTrainedModel):
                 model_path = path / Dumper.hf_models / key
                 model_path.mkdir(parents=True, exist_ok=True)
@@ -146,7 +163,9 @@ class Dumper:
                 except Exception as e:
                     msg = f"Error dumping HF model {key}: {e}"
                     logger.exception(msg)
-            elif isinstance(val, BaseTorchModule):
+                    if raise_errors:
+                        raise
+            elif isinstance(val, BaseTorchModuleWithVocab):
                 model_path = path / Dumper.torch_models / key
                 model_path.mkdir(parents=True, exist_ok=True)
                 try:
@@ -160,6 +179,8 @@ class Dumper:
                 except Exception as e:
                     msg = f"Error dumping torch model {key}: {e}"
                     logger.exception(msg)
+                    if raise_errors:
+                        raise
             elif isinstance(val, PreTrainedTokenizer | PreTrainedTokenizerFast):
                 tokenizer_path = path / Dumper.hf_tokenizers / key
                 tokenizer_path.mkdir(parents=True, exist_ok=True)
@@ -168,11 +189,15 @@ class Dumper:
                 except Exception as e:
                     msg = f"Error dumping HF tokenizer {key}: {e}"
                     logger.exception(msg)
+                    if raise_errors:
+                        raise
             elif isinstance(val, CatBoostClassifier):
                 val.save_model(str(path / Dumper.catboost_models / key), format="cbm")
             else:
                 msg = f"Attribute {key} of type {type(val)} cannot be dumped to file system."
                 logger.error(msg)
+                if raise_errors:
+                    raise TypeError(msg)
 
         with (path / Dumper.simple_attrs).open("w", encoding="utf-8") as file:
             json.dump(simple_attrs, file, ensure_ascii=False, indent=4)
@@ -185,6 +210,7 @@ class Dumper:
         path: Path,
         embedder_config: EmbedderConfig | None = None,
         cross_encoder_config: CrossEncoderConfig | None = None,
+        raise_errors: bool = False,
     ) -> None:
         """Load attributes from file system."""
         tags: dict[str, Any] = {}
@@ -250,7 +276,8 @@ class Dumper:
                     except Exception as e:
                         msg = f"Error loading Pydantic model from {model_dir}: {e}"
                         logger.exception(msg)
-                        continue
+                        if raise_errors:
+                            raise
             elif child.name == Dumper.ptuning_models:
                 for model_dir in child.iterdir():
                     try:
@@ -259,6 +286,8 @@ class Dumper:
                     except Exception as e:  # noqa: PERF203
                         msg = f"Error loading PeftModel {model_dir.name}: {e}"
                         logger.exception(msg)
+                        if raise_errors:
+                            raise
             elif child.name == Dumper.hf_models:
                 for model_dir in child.iterdir():
                     try:
@@ -266,6 +295,8 @@ class Dumper:
                     except Exception as e:  # noqa: PERF203
                         msg = f"Error loading HF model {model_dir.name}: {e}"
                         logger.exception(msg)
+                        if raise_errors:
+                            raise
             elif child.name == Dumper.hf_tokenizers:
                 for tokenizer_dir in child.iterdir():
                     try:
@@ -273,6 +304,8 @@ class Dumper:
                     except Exception as e:  # noqa: PERF203
                         msg = f"Error loading HF tokenizer {tokenizer_dir.name}: {e}"
                         logger.exception(msg)
+                        if raise_errors:
+                            raise
             elif child.name == Dumper.catboost_models:
                 for model_file in child.iterdir():
                     try:
@@ -288,15 +321,19 @@ class Dumper:
                         with (model_dir / "class_info.json").open("r") as f:
                             class_info = json.load(f)
                         module = importlib.import_module(class_info["module"])
-                        model_class: BaseTorchModule = getattr(module, class_info["name"])
+                        model_class: BaseTorchModuleWithVocab = getattr(module, class_info["name"])
                         model = model_class.load(model_dir)
                         torch_models[model_dir.name] = model
                 except Exception as e:
                     msg = f"Error loading torch model {model_dir.name}: {e}"
                     logger.exception(msg)
+                    if raise_errors:
+                        raise
             else:
                 msg = f"Found unexpected child {child}"
                 logger.error(msg)
+                if raise_errors:
+                    raise ValueError(msg)
 
         obj.__dict__.update(
             tags

@@ -2,6 +2,7 @@
 
 from ._inference_node import InferenceNodeConfig
 from ._optimization import DataConfig, HPOConfig, LoggingConfig
+from ._torch import TorchTrainingConfig, VocabConfig
 from ._transformers import (
     CrossEncoderConfig,
     EarlyStoppingConfig,
@@ -19,8 +20,9 @@ __all__ = [
     "HFModelConfig",
     "HPOConfig",
     "InferenceNodeConfig",
-    "InferenceNodeConfig",
     "LoggingConfig",
     "TaskTypeEnum",
     "TokenizerConfig",
+    "TorchTrainingConfig",
+    "VocabConfig",
 ]
