@@ -420,7 +420,8 @@
                             "items": {
                                 "enum": [
                                     "wandb",
-                                    "tensorboard"
+                                    "tensorboard",
+                                    "emissions_tracker"
                                 ],
                                 "type": "string"
                             },
