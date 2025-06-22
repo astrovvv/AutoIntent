@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, ClassVar, Literal, TypedDict, TypeVar
+from typing import Any, Literal, TypedDict, TypeVar
 
 import openai
 from dotenv import load_dotenv
@@ -57,20 +57,13 @@ class Generator:
 
     _dump_data_filename = "init_params.json"
 
-    _default_generation_params: ClassVar[dict[str, Any]] = {
-        "max_tokens": 150,
-        "n": 1,
-        "stop": None,
-        "temperature": 0.7,
-    }
-    """Default generation parameters for API requests."""
-
     def __init__(
         self,
         base_url: str | None = None,
         model_name: str | None = None,
         use_cache: bool = True,
-        **generation_params: Any,  # noqa: ANN401
+        client_params: dict[str, Any] | None = None,
+        **generation_params: dict[str, Any],
     ) -> None:
         """Initialize the Generator with API configuration.
 
@@ -78,6 +71,7 @@ class Generator:
             base_url: OpenAI API compatible server URL.
             model_name: Name of the language model to use.
             use_cache: Whether to use caching for structured outputs.
+            client_params: Additional parameters for client.
             **generation_params: Additional generation parameters to override defaults passed to OpenAI completions API.
         """
         base_url = base_url or os.getenv("OPENAI_BASE_URL")
@@ -91,14 +85,10 @@ class Generator:
         self.base_url = base_url
         self.use_cache = use_cache
 
-        self.client = openai.OpenAI(base_url=base_url)
-        self.async_client = openai.AsyncOpenAI(base_url=base_url)
+        self.client = openai.OpenAI(base_url=base_url, **(client_params or {}))
+        self.async_client = openai.AsyncOpenAI(base_url=base_url, **(client_params or {}))
+        self.generation_params = generation_params
         self.cache = StructuredOutputCache(use_cache=use_cache)
-
-        self.generation_params = {
-            **self._default_generation_params,
-            **generation_params,
-        }  #  https://stackoverflow.com/a/65539348
 
     def get_chat_completion(self, messages: list[Message]) -> str:
         """Prompt LLM and return its answer.
@@ -107,11 +97,11 @@ class Generator:
             messages: List of messages to send to the model.
         """
         response = self.client.chat.completions.create(
-            messages=messages,  # type: ignore[arg-type]
+            messages=messages,  # type: ignore[call-overload]
             model=self.model_name,
             **self.generation_params,
         )
-        return response.choices[0].message.content  # type: ignore[return-value]
+        return response.choices[0].message.content  # type: ignore[no-any-return]
 
     async def get_chat_completion_async(self, messages: list[Message]) -> str:
         """Prompt LLM and return its answer asynchronously.
@@ -120,11 +110,15 @@ class Generator:
             messages: List of messages to send to the model.
         """
         response = await self.async_client.chat.completions.create(
-            messages=messages,  # type: ignore[arg-type]
+            messages=messages,  # type: ignore[call-overload]
             model=self.model_name,
             **self.generation_params,
         )
-        return response.choices[0].message.content  # type: ignore[return-value]
+
+        if response is None or not response.choices:
+            msg = "No response received from the model."
+            raise RuntimeError(msg)
+        return response.choices[0].message.content  # type: ignore[no-any-return]
 
     def _create_retry_messages(self, error_message: str, raw: str | None) -> list[Message]:
         """Create a follow-up message for retry with error details and schema."""
@@ -168,7 +162,7 @@ class Generator:
                 model=self.model_name,
                 messages=messages,  # type: ignore[arg-type]
                 response_format=output_model,
-                **self.generation_params,
+                **self.generation_params,  # type: ignore[arg-type]
             )
             raw = response.choices[0].message.content
             res = response.choices[0].message.parsed
@@ -194,12 +188,12 @@ class Generator:
             json_schema = output_model.model_json_schema()
             response = await self.async_client.chat.completions.create(
                 model=self.model_name,
-                messages=messages,  # type: ignore[arg-type]
+                messages=messages,  # type: ignore[call-overload]
                 extra_body={"guided_json": json_schema},
                 **self.generation_params,
             )
             raw = response.choices[0].message.content
-            res = output_model.model_validate_json(raw)  # type: ignore[arg-type]
+            res = output_model.model_validate_json(raw)
         except (ValidationError, ValueError) as e:
             msg = f"Failed to obtain structured output for model {self.model_name} and messages {messages}: {e!s}"
             logger.warning(msg)
@@ -252,6 +246,10 @@ class Generator:
             current_messages.extend(self._create_retry_messages(error, raw))
 
         if res is None:
+            msg = (
+                f"Failed to generate valid structured output after {max_retries + 1} attempts.\n"
+                f"Messages: {current_messages}"
+            )
             logger.exception(msg)
             raise RetriesExceededError(max_retries=max_retries, messages=current_messages)
 
@@ -281,7 +279,7 @@ class Generator:
                 model=self.model_name,
                 messages=messages,  # type: ignore[arg-type]
                 response_format=output_model,
-                **self.generation_params,
+                **self.generation_params,  # type: ignore[arg-type]
             )
             raw = response.choices[0].message.content
             res = response.choices[0].message.parsed
@@ -307,12 +305,12 @@ class Generator:
             json_schema = output_model.model_json_schema()
             response = self.client.chat.completions.create(
                 model=self.model_name,
-                messages=messages,  # type: ignore[arg-type]
+                messages=messages,  # type: ignore[call-overload]
                 extra_body={"guided_json": json_schema},
                 **self.generation_params,
             )
             raw = response.choices[0].message.content
-            res = output_model.model_validate_json(raw)  # type: ignore[arg-type]
+            res = output_model.model_validate_json(raw)
         except (ValidationError, ValueError) as e:
             msg = f"Failed to obtain structured output for model {self.model_name} and messages {messages}: {e!s}"
             logger.warning(msg)
@@ -365,6 +363,7 @@ class Generator:
             current_messages.extend(self._create_retry_messages(error, raw))
 
         if res is None:
+            msg = "Structured output returned None but no error was caught."
             logger.exception(msg)
             raise RetriesExceededError(max_retries=max_retries, messages=current_messages)
 
