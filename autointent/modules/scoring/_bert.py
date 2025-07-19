@@ -109,15 +109,12 @@ class BertScorer(BaseScorer):
         if classification_model_config is None:
             classification_model_config = context.resolve_transformer()
 
-        report_to = context.logging_config.report_to
-
         return cls(
             classification_model_config=classification_model_config,
             num_train_epochs=num_train_epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
             seed=seed,
-            report_to=report_to,
             early_stopping_config=early_stopping_config,
         )
 
@@ -131,7 +128,7 @@ class BertScorer(BaseScorer):
         label2id = {i: i for i in range(self._n_classes)}
         id2label = {i: i for i in range(self._n_classes)}
 
-        return AutoModelForSequenceClassification.from_pretrained(  # type: ignore[no-untyped-call]
+        return AutoModelForSequenceClassification.from_pretrained(
             self.classification_model_config.model_name,
             trust_remote_code=self.classification_model_config.trust_remote_code,
             num_labels=self._n_classes,
@@ -147,7 +144,7 @@ class BertScorer(BaseScorer):
     ) -> None:
         self._validate_task(labels)
 
-        self._tokenizer = AutoTokenizer.from_pretrained(self.classification_model_config.model_name)
+        self._tokenizer = AutoTokenizer.from_pretrained(self.classification_model_config.model_name)  # type: ignore[no-untyped-call]
         self._model = self._initialize_model()
         tokenized_dataset = self._get_tokenized_dataset(utterances, labels)
         self._train(tokenized_dataset)
@@ -168,10 +165,13 @@ class BertScorer(BaseScorer):
                 learning_rate=self.learning_rate,
                 seed=self.seed,
                 save_strategy="epoch",
+                save_total_limit=1,
                 eval_strategy="epoch",
                 logging_strategy="steps",
                 logging_steps=10,
-                report_to=self.report_to if self.report_to is not None else "none",
+                report_to=self.report_to,
+                fp16=self.classification_model_config.fp16,
+                bf16=self.classification_model_config.bf16,
                 use_cpu=self.classification_model_config.device == "cpu",
                 metric_for_best_model=self.early_stopping_config.metric,
                 load_best_model_at_end=self.early_stopping_config.metric is not None,
