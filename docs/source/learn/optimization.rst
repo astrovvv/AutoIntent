@@ -6,7 +6,7 @@ In this section, you will learn how hyperparameter optimization works in our lib
 Pipeline
 --------
 
-The entire process of configuring a classifier in our library is divided into sequential steps (:ref:`and that's why <key-stages>`):
+The entire process of configuring a classifier in our library is divided into sequential steps (:ref:`and that's why <concepts-pipeline>`):
 
 1. Selecting an embedder (EmbeddingNode)
 2. Selecting a classifier (ScoringNode)
@@ -43,4 +43,3 @@ This is similar to random search over a subset, but during the search, we attemp
 
 This approach is more sophisticated and can lead to better results by intelligently exploring the hyperparameter space.
 
-The implementation of Bayesian optimization is planned for release v0.1.0.
