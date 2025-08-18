@@ -48,6 +48,7 @@ dependencies = [
     "catboost (>=1.2.8,<2.0.0)",
     "aiometer (>=1.0.0,<2.0.0)",
     "aiofiles (>=24.1.0,<25.0.0)",
+    "threadpoolctl (>=3.0.0,<4.0.0)",
 ]
 
 [project.optional-dependencies]
@@ -107,6 +108,9 @@ fastapi = [
 fastmcp = [
     "pydantic-settings (>=2.0, <3.0)",
     "fastmcp (>=2.11.3, <3.0)"
+]
+opensearch = [
+    "opensearch-py (>=3.0.0, <4.0.0)",
 ]
 
 [project.urls]
